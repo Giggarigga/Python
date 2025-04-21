@@ -21,15 +21,3 @@ async def absence(interaction: discord.Interaction, time: str, reason: str):
         await interaction.response.send_message(
             f"{interaction.user.mention} is now marked **absent** for `{reason}`. They’ll return in `{time}`.",
             ephemeral=True
-        )
-    except Exception as e:
-        print("Error in /absence command:")
-        traceback.print_exc()
-        await interaction.response.send_message("Something went wrong. Please try again later.", ephemeral=True)
-
-# Global error handler (catch startup or runtime issues)
-try:
-    bot.run(os.getenv("DISCORD_TOKEN"))
-except Exception as e:
-    print("Error while running the bot:")
-    traceback.print_exc()
