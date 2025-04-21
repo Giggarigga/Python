@@ -1,23 +1,60 @@
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-import os
-import traceback
 
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
-tree = bot.tree
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix='/', intents=intents)
+
+absence_data = {}
 
 @bot.event
 async def on_ready():
-    await tree.sync()
-    print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+    await bot.tree.sync()
+    print(f'Logged in as {bot.user}')
 
-# Slash command: /absence time: <string> reason: <string>
-@tree.command(name="absence", description="Set your absence with a reason and time.")
-@app_commands.describe(time="How long you'll be absent (e.g. 2d 5h)", reason="Why you're absent")
-async def absence(interaction: discord.Interaction, time: str, reason: str):
-    try:
-        await interaction.response.send_message(
-            f"{interaction.user.mention} is now marked **absent** for `{reason}`. They’ll return in `{time}`.",
-            ephemeral=True
+@bot.tree.command(name="setabsence", description="Mark a user as absent.")
+@app_commands.describe(user="Who is absent?", reason="Why are they absent?")
+async def setabsence(interaction: discord.Interaction, user: discord.Member, reason: str):
+    absence_data[user.id] = {
+        "reason": reason
+    }
+
+    embed = discord.Embed(
+        title="Staff Absence",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="• Staff Member:", value=user.mention, inline=False)
+    embed.add_field(name="• Reason:", value=reason, inline=False)
+    embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
+
+    await interaction.response.send_message(embed=embed)
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    # Check if any absent user is pinged
+    for user_id, data in absence_data.items():
+        if f"<@{user_id}>" in message.content or f"<@!{user_id}>" in message.content:
+            user = await bot.fetch_user(user_id)
+            await message.channel.send(
+                f"{user.mention} is **absent** for **{data['reason']}**, they will come back when available."
+            )
+            break
+
+    # Auto-remove absence if the absent user sends a message
+    if message.author.id in absence_data:
+        del absence_data[message.author.id]
+        msg = await message.channel.send(
+            f"Welcome back {message.author.mention}! I’ve removed your **absence**."
+        )
+        await msg.delete(delay=15)
+
+    await bot.process_commands(message)
+
+bot.run(os.getenv("DISCORD_BOT_TOKEN"))
